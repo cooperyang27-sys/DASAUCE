@@ -2,7 +2,7 @@ Wassub
 
 Essay Writer lets you write with aesthetic video in the background
 
-0. Download golive extensions on ya vscode and press go live
+0. Download Live Server extension on ya vscode and press go live
 1. Copy paste the url in the text box
 2. Click out of text box
 3. Select open file or create new
