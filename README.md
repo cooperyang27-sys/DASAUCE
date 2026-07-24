@@ -7,6 +7,7 @@ Essay Writer lets you write with aesthetic video in the background
 2. Click out of text box
 3. Select open file or create new
 3.5. If using google drive, select whitelisted login and wait for app to pull 5 most recent docs
-4. Open da editor
+   *** Only docx files will work. You shoudl probably make a blank docx first before doing the google drive stuff.
+5. Open da editor
 
 Then u good mud press save to save b4 u leave
