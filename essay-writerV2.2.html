@@ -1,0 +1,1656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Essay Writer</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+<script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
+<script src="https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js"></script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --white: #ffffff;
+    --off-white: rgba(255,255,255,0.85);
+    --dim-white: rgba(255,255,255,0.5);
+    --faint-white: rgba(255,255,255,0.15);
+    --border: rgba(255,255,255,0.18);
+    --toolbar-bg: transparent; 
+    --bottombar-bg: rgba(10, 10, 10, 0.4); /* Added a subtle backdrop color so text stands out clearly */
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #000;
+    font-family: 'Inter', sans-serif;
+    color: var(--white);
+  }
+
+  /* VIDEO LAYER */
+  #video-layer {
+    position: fixed; inset: 0; z-index: 0;
+    background: #000;
+  }
+  #yt-iframe {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    display: none;
+  }
+  #local-video {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: none;
+  }
+
+  /* OVERLAY PANEL */
+  #overlay-panel {
+    position: fixed; inset: 0; z-index: 1;
+    background: rgba(0,0,0,0.72);
+    pointer-events: none;
+    transition: background 0.3s;
+  }
+
+  /* LANDING */
+  #landing {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,0.92);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .landing-title {
+    font-family: 'Lora', serif;
+    font-size: 2rem; font-weight: 400;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.3rem;
+  }
+  .landing-sub {
+    font-size: 0.75rem; font-weight: 300;
+    color: var(--dim-white);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 3rem;
+  }
+  .landing-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 2rem 2.5rem;
+    width: 420px;
+    display: flex; flex-direction: column;
+    gap: 1.4rem;
+  }
+  .landing-section { display: flex; flex-direction: column; gap: 0.5rem; }
+  .landing-label {
+    font-size: 0.68rem; font-weight: 500;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--dim-white);
+  }
+  .landing-divider { height: 1px; background: var(--border); }
+  .landing-input {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 0.55rem 0.8rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem; color: var(--white);
+    outline: none; transition: border-color 0.2s;
+  }
+  .landing-input::placeholder { color: var(--dim-white); }
+  .landing-input:focus { border-color: rgba(255,255,255,0.5); }
+  .hint-text { font-size: 0.68rem; color: var(--dim-white); }
+
+  .btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.75rem; font-weight: 500;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 0.55rem 1rem;
+    border-radius: 2px; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    outline: none;
+  }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--off-white);
+  }
+  .btn-ghost:hover { background: var(--faint-white); border-color: rgba(255,255,255,0.4); }
+  .btn-solid {
+    background: var(--white); border: 1px solid var(--white); color: #000;
+  }
+  .btn-solid:hover { background: rgba(255,255,255,0.85); }
+  .btn-full { width: 100%; }
+
+  /* WORKSPACE */
+  #workspace {
+    display: none;
+    position: fixed; inset: 0; z-index: 10;
+    flex-direction: column;
+  }
+  #workspace.active { display: flex; }
+
+  /* TOOLBAR */
+  #toolbar {
+    background: var(--toolbar-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0 0.8rem;
+    height: 42px;
+    display: flex; align-items: center;
+    gap: 0.2rem; flex-shrink: 0;
+  }
+  .toolbar-group {
+    display: flex; align-items: center;
+    gap: 0.15rem; padding: 0 0.35rem;
+    border-right: 1px solid var(--border);
+  }
+  .toolbar-group:last-child { border-right: none; }
+  .tb-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    color: var(--off-white);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.72rem; font-weight: 500;
+    padding: 0.3rem 0.45rem;
+    cursor: pointer;
+    min-width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .tb-btn:hover { background: var(--faint-white); border-color: var(--border); }
+  .tb-btn.active { background: var(--faint-white); border-color: rgba(255,255,255,0.35); color: var(--white); }
+  .tb-select {
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 2px; color: var(--off-white);
+    font-family: 'Inter', sans-serif; font-size: 0.72rem;
+    padding: 0.25rem 0.35rem; cursor: pointer; outline: none; height: 26px;
+  }
+  .tb-select option { background: #1a1a1a; color: #fff; }
+  .font-size-input {
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 2px; color: var(--off-white);
+    font-family: 'Inter', sans-serif; font-size: 0.72rem;
+    width: 40px; padding: 0.25rem 0.3rem;
+    text-align: center; outline: none; height: 26px;
+  }
+
+ 
+  /* EDITOR CONTAINER & TYPEWRITER SCROLLING SPACE */
+  #editor-scroll {
+    flex: 1; 
+    overflow-y: auto;
+    min-height: 0; 
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.15) transparent;
+  }
+  #editor-scroll::-webkit-scrollbar { width: 5px; }
+  #editor-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+  
+  #editor-container { 
+    width: 100%; 
+    max-width: 720px; 
+    margin: 0 auto; /* Handles horizontal centering reliably without flexbox scroll bugs */
+    padding-top: 45vh;
+    padding-bottom: 50vh; /* Lives on the scrolled child, not the flex/scroll container itself, so it can't fight the flex layout */
+    position: relative; 
+  }
+  
+  #editor, #editor *, .ProseMirror, .ProseMirror:focus { 
+    background: transparent; 
+    outline: none !important; /* Strips away any click/focus outline borders entirely */
+    box-shadow: none !important;
+  }
+
+  /* FOCUS MODE STYLES */
+  .ProseMirror > * {
+    opacity: 0.3; /* Dimmed by default */
+    transition: opacity 0.25s ease;
+  }
+
+  .ProseMirror {
+    font-family: 'Lora', serif;
+    font-size: 1.05rem; line-height: 1.85;
+    color: var(--white);
+    caret-color: var(--white);
+    min-height: 100px; 
+  }
+
+  /* BOTTOM BAR */
+  #bottom-bar {
+    background: var(--bottombar-bg);
+    border-top: 1px solid var(--border);
+    height: 48px; padding: 0 1.2rem;
+    display: flex; align-items: center;
+    gap: 1rem; flex-shrink: 0;
+    position: relative;
+    z-index: 20; /* Ensures bottom bar explicitly floats cleanly over any document scrolling layers */
+  }
+  .bb-label {
+    font-size: 0.64rem; font-weight: 500;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--dim-white); white-space: nowrap;
+  }
+  .bb-group { display: flex; align-items: center; gap: 0.55rem; }
+  .bb-divider { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+  .bb-spacer { flex: 1; }
+  #opacity-slider {
+    -webkit-appearance: none; appearance: none;
+    width: 76px; height: 2px;
+    background: var(--border); border-radius: 1px;
+    outline: none; cursor: pointer;
+  }
+  #opacity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--white); cursor: pointer;
+  }
+  #opacity-slider::-moz-range-thumb {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--white); border: none; cursor: pointer;
+  }
+  #volume-slider {
+    -webkit-appearance: none; appearance: none;
+    width: 70px; height: 2px;
+    background: var(--border); border-radius: 1px;
+    outline: none; cursor: pointer;
+  }
+  #volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--white); cursor: pointer;
+  }
+  #volume-slider::-moz-range-thumb {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--white); border: none; cursor: pointer;
+  }
+  #btn-toggle-focus.active {
+    background: var(--faint-white); border-color: rgba(255,255,255,0.5); color: var(--white);
+  }
+  #file-selector {
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 2px; color: var(--off-white);
+    font-family: 'Inter', sans-serif; font-size: 0.72rem;
+    padding: 0.2rem 0.5rem; cursor: pointer; outline: none; max-width: 150px;
+  }
+  #file-selector option { background: #111; color: #fff; }
+  
+  #word-count {
+    font-size: 0.65rem; color: var(--dim-white);
+    letter-spacing: 0.06em; white-space: nowrap;
+  }
+
+  #save-status {
+    font-size: 0.65rem; color: var(--dim-white);
+    letter-spacing: 0.06em; min-width: 120px; white-space: nowrap;
+  }
+  #save-status.saved { color: rgba(140,220,140,0.85); }
+  #save-status.unsaved { color: rgba(255,180,80,0.85); }
+  #session-timer {
+    font-size: 0.65rem; color: var(--dim-white);
+    letter-spacing: 0.08em; font-variant-numeric: tabular-nums;
+  }
+  .bb-icon-btn {
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 2px; color: var(--off-white);
+    width: 28px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 0.75rem;
+    transition: background 0.12s; flex-shrink: 0;
+  }
+  .bb-icon-btn:hover { background: var(--faint-white); }
+  
+  .yt-update-input {
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 2px; color: var(--off-white);
+    font-family: 'Inter', sans-serif; font-size: 0.72rem;
+    padding: 0.25rem 0.5rem; outline: none; width: 120px;
+  }
+  .yt-update-input::placeholder { color: rgba(255,255,255,0.3); }
+
+  /* MODAL */
+  #add-file-modal {
+    display: none; position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,0.7);
+    align-items: center; justify-content: center;
+  }
+  #add-file-modal.open { display: flex; }
+  .modal-card {
+    background: rgba(15,15,15,0.98);
+    border: 1px solid var(--border); border-radius: 2px;
+    padding: 1.8rem 2rem; width: 380px;
+    display: flex; flex-direction: column; gap: 1rem;
+  }
+  .modal-title {
+    font-size: 0.8rem; font-weight: 500;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--off-white);
+  }
+  .modal-btn-row { display: flex; gap: 0.6rem; justify-content: flex-end; margin-top: 0.4rem; }
+
+
+  /* DRIVE PICKER */
+  #drive-picker {
+    display: none; position: fixed; inset: 0; z-index: 300;
+    background: rgba(0,0,0,0.7);
+    align-items: center; justify-content: center;
+  }
+  #drive-picker.open { display: flex; }
+  .dp-card {
+    background: rgba(15,15,15,0.98);
+    border: 1px solid var(--border); border-radius: 2px;
+    width: min(860px, 92vw); height: min(640px, 84vh);
+    display: flex; flex-direction: column;
+  }
+  .dp-header {
+    display: flex; align-items: center; gap: 0.8rem;
+    padding: 0.85rem 1.2rem; border-bottom: 1px solid var(--border);
+  }
+  .dp-title {
+    font-size: 0.8rem; font-weight: 500; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--off-white); white-space: nowrap;
+  }
+  .dp-search { flex: 1; position: relative; }
+  .dp-search i {
+    position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%);
+    font-size: 0.7rem; color: var(--dim-white); pointer-events: none;
+  }
+  .dp-search input { padding-left: 2rem; }
+  .dp-view-toggle { display: flex; border: 1px solid var(--border); border-radius: 2px; }
+  .dp-view-btn {
+    background: transparent; border: none; color: var(--dim-white);
+    width: 30px; height: 28px; cursor: pointer; font-size: 0.75rem;
+    transition: background 0.12s, color 0.12s;
+  }
+  .dp-view-btn + .dp-view-btn { border-left: 1px solid var(--border); }
+  .dp-view-btn:hover { background: var(--faint-white); color: var(--white); }
+  .dp-view-btn.active { background: var(--faint-white); color: var(--white); }
+  .dp-close {
+    background: transparent; border: none; color: var(--dim-white);
+    cursor: pointer; font-size: 0.9rem; width: 28px; height: 28px;
+  }
+  .dp-close:hover { color: var(--white); }
+
+  .dp-body {
+    flex: 1; min-height: 0; overflow-y: auto; position: relative;
+    padding: 1.1rem 1.2rem; user-select: none; -webkit-user-select: none;
+    scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.15) transparent;
+  }
+  .dp-body::-webkit-scrollbar { width: 5px; }
+  .dp-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+  .dp-state {
+    padding: 3rem 0; text-align: center;
+    font-size: 0.72rem; color: var(--dim-white); letter-spacing: 0.08em;
+  }
+  .dp-marquee {
+    position: absolute; display: none; z-index: 2; pointer-events: none;
+    border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.08);
+  }
+
+  .dp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1.1rem; }
+  .dp-card-item { display: flex; flex-direction: column; gap: 0.5rem; cursor: pointer; }
+  .dp-thumb {
+    position: relative; aspect-ratio: 0.78; overflow: hidden;
+    border: 1px solid var(--border); border-radius: 2px;
+    background: rgba(255,255,255,0.04);
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .dp-thumb::before {
+    content: ''; position: absolute; left: 14%; right: 14%; top: 16%; height: 58%;
+    background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.14) 0 2px, transparent 2px 9px);
+  }
+  .dp-card-item:hover .dp-thumb { border-color: rgba(255,255,255,0.4); background: var(--faint-white); }
+  .dp-card-item.selected .dp-thumb { border-color: var(--white); background: rgba(255,255,255,0.1); }
+
+  .dp-check {
+    width: 17px; height: 17px; flex-shrink: 0;
+    border: 1px solid var(--dim-white); border-radius: 2px;
+    background: rgba(0,0,0,0.5); color: #000;
+    display: flex; align-items: center; justify-content: center; font-size: 0.55rem;
+  }
+  .dp-check i { display: none; }
+  .dp-thumb .dp-check { position: absolute; top: 8px; left: 8px; z-index: 1; }
+  .selected .dp-check { background: var(--white); border-color: var(--white); }
+  .selected .dp-check i { display: block; }
+
+  .dp-name {
+    font-size: 0.76rem; color: var(--off-white); line-height: 1.3; word-break: break-word;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .dp-meta { font-size: 0.65rem; color: var(--dim-white); letter-spacing: 0.04em; }
+
+  .dp-list { display: flex; flex-direction: column; }
+  .dp-list-head, .dp-row {
+    display: flex; align-items: center; gap: 0.8rem; padding: 0.5rem 0.7rem;
+  }
+  .dp-list-head {
+    font-size: 0.65rem; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--dim-white); border-bottom: 1px solid var(--border); user-select: none;
+  }
+  .dp-row {
+    cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.07);
+    transition: background 0.12s;
+  }
+  .dp-row:hover { background: rgba(255,255,255,0.05); }
+  .dp-row.selected { background: rgba(255,255,255,0.1); }
+  .dp-row .fa-file-lines { color: var(--dim-white); font-size: 0.85rem; width: 14px; text-align: center; }
+  .dp-row .dp-name { flex: 1; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+  .dp-row .dp-meta, .dp-list-head .dp-col-mod { width: 130px; text-align: right; flex-shrink: 0; }
+  .dp-list-head .dp-col-name { flex: 1; padding-left: 2.75rem; }
+
+  .dp-item.opened { opacity: 0.4; cursor: default; }
+  .dp-more { display: block; margin: 1.2rem auto 0; }
+
+  .dp-footer {
+    display: flex; align-items: center; gap: 0.7rem;
+    padding: 0.75rem 1.2rem; border-top: 1px solid var(--border);
+  }
+  .dp-count { font-size: 0.7rem; color: var(--off-white); letter-spacing: 0.04em; min-width: 80px; }
+  .dp-link {
+    background: transparent; border: none; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 0.65rem; font-weight: 500;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim-white);
+  }
+  .dp-link:hover { color: var(--white); }
+  .dp-footer .dp-spacer { flex: 1; }
+  .btn:disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+
+  /* TOAST */
+  #toast {
+    position: fixed; bottom: 60px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20,20,20,0.95);
+    border: 1px solid var(--border); border-radius: 2px;
+    padding: 0.5rem 1.1rem; font-size: 0.75rem;
+    color: var(--off-white); letter-spacing: 0.04em;
+    z-index: 1000; opacity: 0; transition: opacity 0.3s;
+    pointer-events: none; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="video-layer">
+  <iframe id="yt-iframe" allow="autoplay; encrypted-media" allowfullscreen frameborder="0"></iframe>
+  <video id="local-video" autoplay loop muted playsinline></video>
+</div>
+
+<div id="overlay-panel"></div>
+
+<div id="landing">
+  <h1 class="landing-title">Essay Writer</h1>
+  <p class="landing-sub">Minimalist · Focused · Cinematic</p>
+  <div class="landing-card">
+
+    <div class="landing-section">
+      <span class="landing-label">Background Video</span>
+      <input type="text" id="yt-url-input" class="landing-input" placeholder="YouTube URL">
+      <p class="hint-text">— or —</p>
+      <input type="file" id="local-video-input" accept="video/*" style="display:none">
+      <button class="btn btn-ghost" id="btn-pick-video">Upload local video file</button>
+      <span id="local-video-name" class="hint-text"></span>
+    </div>
+
+    <div class="landing-divider"></div>
+
+    <div class="landing-section">
+      <span class="landing-label">Open Existing Files</span>
+      <input type="file" id="open-files-input" accept=".docx" multiple style="display:none">
+      <button class="btn btn-ghost" id="btn-open-files">Open Local .docx</button>
+      <button class="btn btn-ghost" id="btn-drive-pull">Pull from Google Drive</button>
+      <span id="open-files-name" class="hint-text"></span>
+    </div>
+
+    <div class="landing-divider"></div>
+
+    <div class="landing-section">
+      <span class="landing-label">Start Fresh</span>
+      <button class="btn btn-ghost btn-full" id="btn-new-from-landing">Create new document</button>
+    </div>
+
+    <button class="btn btn-solid btn-full" id="btn-launch" style="opacity:0.6;margin-top:0.4rem">
+      Open Workspace →
+    </button>
+  </div>
+</div>
+
+<div id="workspace">
+  <div id="toolbar">
+    <div class="toolbar-group">
+      <select id="font-family" class="tb-select" title="Font">
+        <option value="Lora">Lora</option>
+        <option value="Inter">Inter</option>
+        <option value="Georgia">Georgia</option>
+        <option value="Times New Roman">Times New Roman</option>
+        <option value="Courier New">Courier New</option>
+        <option value="Arial">Arial</option>
+      </select>
+      <input type="number" id="font-size" class="font-size-input" value="17" min="8" max="72" title="Font size">
+    </div>
+    <div class="toolbar-group">
+      <select id="heading-select" class="tb-select" title="Style">
+        <option value="0">Paragraph</option>
+        <option value="1">Heading 1</option>
+        <option value="2">Heading 2</option>
+        <option value="3">Heading 3</option>
+      </select>
+    </div>
+    <div class="toolbar-group">
+      <button class="tb-btn" id="btn-bold"      title="Bold"><b>B</b></button>
+      <button class="tb-btn" id="btn-italic"    title="Italic"><i>I</i></button>
+      <button class="tb-btn" id="btn-underline" title="Underline" style="text-decoration:underline">U</button>
+      <button class="tb-btn" id="btn-strike"    title="Strikethrough" style="text-decoration:line-through">S</button>
+    </div>
+    <div class="toolbar-group">
+      <button class="tb-btn" id="btn-left"    title="Align left">⇤</button>
+      <button class="tb-btn" id="btn-center"  title="Center">⊟</button>
+      <button class="tb-btn" id="btn-right"   title="Align right">⇥</button>
+      <button class="tb-btn" id="btn-justify" title="Justify">☰</button>
+    </div>
+    <div class="toolbar-group">
+      <button class="tb-btn" id="btn-ul"    title="Bullet list">• —</button>
+      <button class="tb-btn" id="btn-ol"    title="Numbered list">1.</button>
+      <button class="tb-btn" id="btn-quote" title="Blockquote">" "</button>
+    </div>
+    <div class="toolbar-group">
+      <button class="tb-btn" id="btn-undo" title="Undo">↩</button>
+      <button class="tb-btn" id="btn-redo" title="Redo">↪</button>
+    </div>
+    <div class="toolbar-group">
+      <button class="tb-btn active" id="btn-toggle-focus" title="Toggle focus dimming">◐</button>
+    </div>
+    <div class="toolbar-group">
+      <button class="tb-btn" id="btn-add-file">＋ File</button>
+    </div>
+  </div>
+
+  <div id="editor-scroll">
+    <div id="editor-container">
+      <div id="editor"></div>
+    </div>
+  </div>
+
+  <div id="bottom-bar">
+    <div class="bb-group">
+      <span class="bb-label">Dim</span>
+      <input type="range" id="opacity-slider" min="0" max="100" value="72">
+    </div>
+    <div class="bb-divider"></div>
+    
+    <div class="bb-group">
+      <button class="bb-icon-btn" id="btn-playpause" title="Play/Pause">⏸</button>
+      <input type="text" id="workspace-yt-update" class="yt-update-input" placeholder="Change YT URL...">
+      <button class="bb-icon-btn" id="btn-update-yt" title="Update Background">↻</button>
+      <button id="btn-toggle-mute" class="bb-icon-btn" title="Unmute/Mute Video">
+        <i class="fas fa-volume-mute" id="mute-icon"></i>
+      </button>
+      <input type="range" id="volume-slider" min="0" max="100" value="100" title="Volume">
+    </div>
+
+    <div class="bb-divider"></div>
+    <div class="bb-group">
+      <span class="bb-label" id="word-count-label">Words</span>
+      <span id="word-count">0</span>
+    </div>
+
+    <div class="bb-divider"></div>
+    <div class="bb-group">
+      <span class="bb-label">File</span>
+      <select id="file-selector"></select>
+    </div>
+    <div class="bb-divider"></div>
+    <div class="bb-group">
+      <button class="btn btn-ghost" id="btn-manual-save" style="height:26px;padding:0 0.7rem;font-size:0.65rem">Save</button>
+      <span id="save-status">—</span>
+    </div>
+    <div class="bb-spacer"></div>
+    <div class="bb-group">
+      <span class="bb-label">Session</span>
+      <span id="session-timer">00:00:00</span>
+    </div>
+  </div>
+</div>
+
+<div id="add-file-modal">
+  <div class="modal-card">
+    <span class="modal-title">Add Document</span>
+    <div style="display:flex;flex-direction:column;gap:0.7rem">
+      <input type="text" id="new-file-name" class="landing-input" placeholder="New file name">
+      <button class="btn btn-ghost btn-full" id="btn-create-named">Create blank document</button>
+      <div class="landing-divider"></div>
+      <input type="file" id="modal-open-input" accept=".docx" multiple style="display:none">
+      <button class="btn btn-ghost btn-full" id="btn-modal-open-files">Open .docx file(s)</button>
+    </div>
+    <div class="modal-btn-row">
+      <button class="btn btn-ghost" id="btn-close-modal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="drive-picker">
+  <div class="dp-card">
+    <div class="dp-header">
+      <span class="dp-title">Google Drive</span>
+      <div class="dp-search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="dp-search" class="landing-input" placeholder="Search .docx files" autocomplete="off">
+      </div>
+      <div class="dp-view-toggle">
+        <button class="dp-view-btn active" id="dp-view-grid" title="Grid view"><i class="fa-solid fa-table-cells-large"></i></button>
+        <button class="dp-view-btn" id="dp-view-list" title="List view"><i class="fa-solid fa-list"></i></button>
+      </div>
+      <button class="dp-close" id="dp-close" title="Close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="dp-body" id="dp-body">
+      <div class="dp-marquee" id="dp-marquee"></div>
+      <div id="dp-content"></div>
+    </div>
+    <div class="dp-footer">
+      <span class="dp-count" id="dp-count">0 selected</span>
+      <button class="dp-link" id="dp-select-all">Select all</button>
+      <button class="dp-link" id="dp-clear">Clear</button>
+      <span class="dp-spacer"></span>
+      <button class="btn btn-ghost" id="dp-cancel">Cancel</button>
+      <button class="btn btn-solid" id="dp-load" disabled>Load selected</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+import { Editor }      from 'https://esm.sh/@tiptap/core@2.11.5';
+import StarterKit      from 'https://esm.sh/@tiptap/starter-kit@2.11.5';
+import Underline       from 'https://esm.sh/@tiptap/extension-underline@2.11.5';
+import TextAlign       from 'https://esm.sh/@tiptap/extension-text-align@2.11.5';
+import FontFamily      from 'https://esm.sh/@tiptap/extension-font-family@2.11.5';
+import { TextStyle }   from 'https://esm.sh/@tiptap/extension-text-style@2.11.5';
+import Placeholder     from 'https://esm.sh/@tiptap/extension-placeholder@2.11.5';
+
+const GOOGLE_CLIENT_ID = '282019596677-mp75nk98ce3suc1lp3vaqgavfn6eus34.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
+
+const files = {};           
+let activeFileId   = null;
+let videoPlaying   = true;
+let isYT           = false;
+let isLocalVideo   = false;
+let localVideoBlob = null;
+let currentLocalVidUrl = null;
+let sessionStart   = null;
+let sessionTick    = null;
+let pendingFileId  = null;
+
+let tokenClient    = null;
+let accessToken    = null;
+let isFocusModeEnabled = true; // when false, all text is shown at the same (active) opacity
+
+const editor = new Editor({
+  element: document.getElementById('editor'),
+  extensions: [
+    StarterKit.configure({ history: true }),
+    Underline,
+    TextStyle,
+    FontFamily,
+    TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    Placeholder.configure({ placeholder: 'Begin writing…' }),
+  ],
+  content: '',
+  editorProps: {
+    handleKeyDown: (view, event) => {
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        view.dispatch(view.state.tr.insertText('\t'));
+        return true; 
+      }
+      return false;
+    }
+  },
+  onCreate({ editor }) {
+    handleFocusModeAndScroll(editor, true);
+  },
+  onUpdate({ editor }) { 
+    updateWordCount(); 
+    markUnsaved(); 
+    syncToolbar(); 
+    handleFocusModeAndScroll(editor);
+  },
+  onSelectionUpdate({ editor }) { 
+    updateWordCount();
+    syncToolbar(); 
+    handleFocusModeAndScroll(editor); 
+  },
+});
+
+// NEW POSTMESSAGE-COMPATIBLE MUTE LISTENER:
+let isMuted = true; // YouTube starts muted by default due to browser autoplay rules
+
+const btnToggleMute = document.getElementById('btn-toggle-mute');
+
+btnToggleMute.addEventListener('click', () => {
+  isMuted = !isMuted;
+
+  if (isYT) {
+    const iframe = document.getElementById('yt-iframe');
+    iframe.contentWindow.postMessage(
+      JSON.stringify({ 
+        event: 'command', 
+        func: isMuted ? 'mute' : 'unMute', 
+        args: '' 
+      }), '*'
+    );
+  } else if (isLocalVideo) {
+    const video = document.getElementById('local-video');
+    if (video) video.muted = isMuted;
+  }
+
+  // Update button icon (if using Font Awesome icon element)
+  const muteIcon = document.getElementById('mute-icon');
+  if (muteIcon) {
+    muteIcon.className = isMuted ? 'fas fa-volume-mute' : 'fas fa-volume-up';
+  } else {
+    // If using emoji button:
+    btnToggleMute.textContent = isMuted ? '🔇' : '🔊';
+  }
+});
+
+// ─── VOLUME SLIDER ──────────
+document.getElementById('volume-slider').addEventListener('input', function() {
+  const vol = Number(this.value); // 0–100
+
+  if (isYT) {
+    const iframe = document.getElementById('yt-iframe');
+    iframe.contentWindow.postMessage(
+      JSON.stringify({ event: 'command', func: 'setVolume', args: [vol] }), '*'
+    );
+  } else if (isLocalVideo) {
+    const video = document.getElementById('local-video');
+    if (video) video.volume = vol / 100;
+  }
+
+  // Dragging the volume up implies the user wants to hear the video —
+  // keep the mute button/icon in sync rather than leaving it stuck muted.
+  if (vol > 0 && isMuted) {
+    isMuted = false;
+    if (isYT) {
+      const iframe = document.getElementById('yt-iframe');
+      iframe.contentWindow.postMessage(
+        JSON.stringify({ event: 'command', func: 'unMute', args: '' }), '*'
+      );
+    } else if (isLocalVideo) {
+      const video = document.getElementById('local-video');
+      if (video) video.muted = false;
+    }
+    const muteIcon = document.getElementById('mute-icon');
+    if (muteIcon) muteIcon.className = 'fas fa-volume-up';
+    else btnToggleMute.textContent = '🔊';
+  } else if (vol === 0 && !isMuted) {
+    isMuted = true;
+    const muteIcon = document.getElementById('mute-icon');
+    if (muteIcon) muteIcon.className = 'fas fa-volume-mute';
+    else btnToggleMute.textContent = '🔇';
+  }
+});
+
+// ─── FOCUS DIMMING TOGGLE ──────────
+document.getElementById('btn-toggle-focus').addEventListener('click', function() {
+  isFocusModeEnabled = !isFocusModeEnabled;
+  this.classList.toggle('active', isFocusModeEnabled);
+  currentActiveIndex = -1; // force the style tag to recompute on next call
+  handleFocusModeAndScroll(editor, true);
+});
+
+// ─── TYPEWRITER SCROLLING & FOCUS ENGINE ──────────
+let currentActiveIndex = -1;
+
+function handleFocusModeAndScroll(tiptapEditor, instant = false) {
+  let styleTag = document.getElementById('dynamic-focus-style');
+  if (!styleTag) {
+    styleTag = document.createElement('style');
+    styleTag.id = 'dynamic-focus-style';
+    document.head.appendChild(styleTag);
+  }
+
+  if (!isFocusModeEnabled) {
+    // Focus dimming is off: show all text at the same (active) opacity.
+    if (currentActiveIndex !== 'all-visible') {
+      styleTag.innerHTML = `.ProseMirror > * { opacity: 1 !important; }`;
+      currentActiveIndex = 'all-visible';
+    }
+    return;
+  }
+
+  const { state } = tiptapEditor;
+  const { selection } = state;
+
+  // 1. If highlighting text, make all paragraphs visible
+  if (!selection.empty) {
+    if (currentActiveIndex !== 'selecting') {
+      styleTag.innerHTML = `.ProseMirror > * { opacity: 1 !important; }`;
+      currentActiveIndex = 'selecting';
+    }
+    return; 
+  }
+
+  // 2. Get current block index
+  const blockIndex = selection.$anchor.index(0);
+  const cssNthChild = blockIndex + 1;
+
+  // 3. ONLY update the style tag if cursor moved to a NEW paragraph
+  if (currentActiveIndex !== cssNthChild) {
+    currentActiveIndex = cssNthChild;
+    styleTag.innerHTML = `
+      .ProseMirror > *:nth-child(${cssNthChild}) {
+        opacity: 1 !important;
+      }
+    `;
+  }
+
+  // 4. Smooth Typewriter Scroll
+  const activeElement = document.querySelector(`.ProseMirror > *:nth-child(${cssNthChild})`);
+  if (activeElement) {
+    const scrollContainer = document.getElementById('editor-scroll');
+    if (scrollContainer) {
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const elRect = activeElement.getBoundingClientRect();
+
+      const elCenterOffsetFromContainerTop = (elRect.top - containerRect.top) + (elRect.height / 2);
+      const targetScrollTop = scrollContainer.scrollTop + elCenterOffsetFromContainerTop - (containerRect.height / 2);
+
+      scrollContainer.scrollTo({
+        top: targetScrollTop,
+        behavior: instant ? 'auto' : 'smooth'
+      });
+    }
+  }
+}
+
+function syncToolbar() {
+  const act = (id, cond) => document.getElementById(id)?.classList.toggle('active', !!cond);
+  act('btn-bold',      editor.isActive('bold'));
+  act('btn-italic',    editor.isActive('italic'));
+  act('btn-underline', editor.isActive('underline'));
+  act('btn-strike',    editor.isActive('strike'));
+  act('btn-left',      editor.isActive({ textAlign: 'left' }));
+  act('btn-center',    editor.isActive({ textAlign: 'center' }));
+  act('btn-right',     editor.isActive({ textAlign: 'right' }));
+  act('btn-justify',   editor.isActive({ textAlign: 'justify' }));
+  act('btn-ul',        editor.isActive('bulletList'));
+  act('btn-ol',        editor.isActive('orderedList'));
+
+  const hs = document.getElementById('heading-select');
+  if (hs) {
+    if      (editor.isActive('heading', { level: 1 })) hs.value = '1';
+    else if (editor.isActive('heading', { level: 2 })) hs.value = '2';
+    else if (editor.isActive('heading', { level: 3 })) hs.value = '3';
+    else hs.value = '0';
+  }
+}
+
+function updateWordCount() {
+  const { from, to } = editor.state.selection;
+  let text = '';
+  const isSelection = from !== to;
+  if (isSelection) {
+    text = editor.state.doc.textBetween(from, to, ' ');
+  } else {
+    text = editor.getText();
+  }
+  const words = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+  document.getElementById('word-count').textContent = `${words}`;
+  const label = document.getElementById('word-count-label');
+  if (label) label.textContent = isSelection ? 'Selected' : 'Words';
+}
+
+// ─── TOOLBAR EVENTS ─────────────────────────────────────
+document.getElementById('btn-bold')     .addEventListener('click', () => editor.chain().focus().toggleBold().run());
+document.getElementById('btn-italic')   .addEventListener('click', () => editor.chain().focus().toggleItalic().run());
+document.getElementById('btn-underline').addEventListener('click', () => editor.chain().focus().toggleUnderline().run());
+document.getElementById('btn-strike')   .addEventListener('click', () => editor.chain().focus().toggleStrike().run());
+document.getElementById('btn-ul')       .addEventListener('click', () => editor.chain().focus().toggleBulletList().run());
+document.getElementById('btn-ol')       .addEventListener('click', () => editor.chain().focus().toggleOrderedList().run());
+document.getElementById('btn-quote')    .addEventListener('click', () => editor.chain().focus().toggleBlockquote().run());
+document.getElementById('btn-undo')     .addEventListener('click', () => editor.chain().focus().undo().run());
+document.getElementById('btn-redo')     .addEventListener('click', () => editor.chain().focus().redo().run());
+
+document.getElementById('btn-left')   .addEventListener('click', () => editor.chain().focus().setTextAlign('left').run());
+document.getElementById('btn-center') .addEventListener('click', () => editor.chain().focus().setTextAlign('center').run());
+document.getElementById('btn-right')  .addEventListener('click', () => editor.chain().focus().setTextAlign('right').run());
+document.getElementById('btn-justify').addEventListener('click', () => editor.chain().focus().setTextAlign('justify').run());
+
+document.getElementById('font-family').addEventListener('change', function() {
+  editor.chain().focus().setFontFamily(this.value).run();
+});
+document.getElementById('font-size').addEventListener('change', function() {
+  const px = Math.min(72, Math.max(8, parseInt(this.value) || 17));
+  document.querySelector('.ProseMirror').style.fontSize = px + 'px';
+});
+document.getElementById('heading-select').addEventListener('change', function() {
+  const l = parseInt(this.value);
+  if (l === 0) editor.chain().focus().setParagraph().run();
+  else editor.chain().focus().toggleHeading({ level: l }).run();
+});
+
+document.getElementById('btn-add-file').addEventListener('click', () => {
+  document.getElementById('add-file-modal').classList.add('open');
+});
+
+// ─── FILE MANAGEMENT ────────────────────────────────────
+function uid() { return '_' + Math.random().toString(36).slice(2, 9); }
+
+function addFileOption(id, name) {
+  const sel = document.getElementById('file-selector');
+  const opt = document.createElement('option');
+  opt.value = id;
+  opt.textContent = name.length > 22 ? name.slice(0, 20) + '…' : name;
+  sel.appendChild(opt);
+}
+
+function createFile(name, content = null, html = null) {
+  const id = uid();
+  files[id] = { name, content, html, savedAt: null, gdriveId: null };
+  addFileOption(id, name);
+  return id;
+}
+
+function saveCurrentState() {
+  if (activeFileId) files[activeFileId].content = editor.getJSON();
+}
+
+function switchToFile(id) {
+  saveCurrentState();
+  activeFileId = id;
+  const f = files[id];
+  if (f.content)    editor.commands.setContent(f.content);
+  else if (f.html)  editor.commands.setContent(f.html);
+  else              editor.commands.clearContent();
+  document.getElementById('file-selector').value = id;
+  updateWordCount();
+  setSaveStatus(f.savedAt ? `Last saved ${fmtTime(f.savedAt)}` : 'Not saved yet', f.savedAt ? 'saved' : '');
+  handleFocusModeAndScroll(editor, true);
+}
+
+document.getElementById('file-selector').addEventListener('change', function() {
+  switchToFile(this.value);
+});
+
+async function importDocx(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const result = await window.mammoth.convertToHtml({ arrayBuffer: e.target.result });
+        resolve({ html: result.value, name: file.name.replace(/\.docx$/i, '') });
+      } catch { resolve({ html: '', name: file.name.replace(/\.docx$/i, '') }); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+async function loadFiles(fileList, afterEach) {
+  for (const file of fileList) {
+    try {
+      const { html, name } = await importDocx(file);
+      const id = createFile(name, null, html);
+      afterEach?.(id);
+    } catch { showToast('Could not open: ' + file.name); }
+  }
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src; s.async = true; s.defer = true;
+    s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+function initGoogleAuth() {
+  if (typeof google === 'undefined' || GOOGLE_CLIENT_ID.startsWith('YOUR_')) return;
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: SCOPES,
+    callback: '', 
+  });
+}
+
+function getDriveAccessToken() {
+  return new Promise((resolve, reject) => {
+    if (accessToken) return resolve(accessToken);
+    if (!tokenClient) return reject(new Error("Drive SDK configs missing."));
+    
+    tokenClient.callback = (resp) => {
+      if (resp.error) reject(resp);
+      else {
+        accessToken = resp.access_token;
+        resolve(accessToken);
+      }
+    };
+    tokenClient.requestAccessToken({ prompt: 'consent' });
+  });
+}
+
+async function saveDocx(id, isAuto = false) {
+  if (!files[id]) return;
+  saveCurrentState();
+  const f = files[id];
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = window.docx;
+  const content = f.content?.content || [];
+  const paras = [];
+
+  for (const node of content) {
+    if (node.type === 'heading') {
+      const lvl = node.attrs?.level || 1;
+      const map = { 1: HeadingLevel.HEADING_1, 2: HeadingLevel.HEADING_2, 3: HeadingLevel.HEADING_3 };
+      paras.push(new Paragraph({
+        heading: map[lvl] || HeadingLevel.HEADING_1,
+        children: [(node.content || []).map(n => new TextRun({ text: n.text || '', bold: true }))].flat(),
+      }));
+    } else if (node.type === 'paragraph') {
+      const runs = (node.content || []).map(n => {
+        const marks = n.marks || [];
+        return new TextRun({
+          text: n.text || '',
+          bold:      marks.some(m => m.type === 'bold'),
+          italics:   marks.some(m => m.type === 'italic'),
+          underline: marks.some(m => m.type === 'underline') ? {} : undefined,
+          strike:    marks.some(m => m.type === 'strike'),
+        });
+      });
+      paras.push(new Paragraph({ children: runs.length ? runs : [new TextRun('')] }));
+    } else if (node.type === 'bulletList' || node.type === 'orderedList') {
+      for (const item of (node.content || [])) {
+        const text = (item.content?.[0]?.content || []).map(n => n.text || '').join('');
+        paras.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun(text)] }));
+      }
+    } else if (node.type === 'blockquote') {
+      const text = (node.content?.[0]?.content || []).map(n => n.text || '').join('');
+      paras.push(new Paragraph({ children: [new TextRun({ text, italics: true })] }));
+    }
+  }
+  if (!paras.length) paras.push(new Paragraph({ children: [new TextRun('')] }));
+
+  try {
+    const blob = await Packer.toBlob(new Document({ sections: [{ properties: {}, children: paras }] }));
+    
+    if (GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.startsWith('YOUR_')) {
+      setSaveStatus('Connecting Drive...', 'unsaved');
+      const token = await getDriveAccessToken();
+      
+      if (!f.gdriveId) {
+        const metaResp = await fetch('https://www.googleapis.com/drive/v3/files', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: f.name.endsWith('.docx') ? f.name : f.name + '.docx',
+            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          })
+        });
+        const metaData = await metaResp.json();
+        if (!metaData.id) throw new Error('Could not instantiate Cloud metadata mapping.');
+        f.gdriveId = metaData.id;
+      }
+      
+      const uploadResp = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${f.gdriveId}?uploadType=media`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        },
+        body: blob
+      });
+      
+      if (!uploadResp.ok) throw new Error('Cloud storage handshake rejected write payload.');
+      
+      f.savedAt = Date.now();
+      setSaveStatus((isAuto ? 'Autosaved Drive ' : 'Saved Drive ') + fmtTime(f.savedAt), 'saved');
+      if (isAuto) showToast('Autosaved to Google Drive');
+    } else {
+      const a = Object.assign(document.createElement('a'), {
+        href: URL.createObjectURL(blob),
+        download: f.name.endsWith('.docx') ? f.name : f.name + '.docx',
+      });
+      a.click();
+      URL.revokeObjectURL(a.href);
+      f.savedAt = Date.now();
+      setSaveStatus((isAuto ? 'Autosaved ' : 'Saved ') + fmtTime(f.savedAt), 'saved');
+      if (isAuto) showToast('Autosaved');
+    }
+  } catch (e) { 
+    console.error(e);
+    showToast('Save failed: ' + e.message); 
+    setSaveStatus('Save Error', 'unsaved');
+  }
+}
+
+// ─── DRIVE PICKER ───────────────────────────────────────
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const dp = {
+  items: [],              // files currently listed (after search)
+  known: new Map(),       // every file seen this session, id -> meta (keeps selections across searches)
+  selected: new Set(),
+  nextPageToken: null,
+  query: '',
+  view: 'grid',
+  loading: false,
+  busy: false,            // true while importing selected files
+  reqId: 0,
+  error: null,
+};
+const dpEl = {
+  root:    document.getElementById('drive-picker'),
+  body:    document.getElementById('dp-body'),
+  content: document.getElementById('dp-content'),
+  marquee: document.getElementById('dp-marquee'),
+  search:  document.getElementById('dp-search'),
+  count:   document.getElementById('dp-count'),
+  load:    document.getElementById('dp-load'),
+};
+
+async function driveFetch(url, opts = {}) {
+  const go = async () => {
+    const token = await getDriveAccessToken();
+    return fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: `Bearer ${token}` } });
+  };
+  let resp = await go();
+  if (resp.status === 401) { accessToken = null; resp = await go(); } // token expired — re-auth once
+  return resp;
+}
+
+function dpOpenedIds() {
+  return new Set(Object.values(files).map(f => f.gdriveId).filter(Boolean));
+}
+function dpFmtDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+async function dpFetchPage(reset) {
+  if (dp.loading) { if (!reset) return; }
+  const myReq = ++dp.reqId;
+  if (reset) { dp.items = []; dp.nextPageToken = null; }
+  dp.loading = true; dp.error = null;
+  dpRender();
+  try {
+    let q = `mimeType='${DOCX_MIME}' and trashed=false`;
+    if (dp.query) q += ` and name contains '${dp.query.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+    const params = new URLSearchParams({
+      q, orderBy: 'modifiedTime desc', pageSize: '60',
+      fields: 'nextPageToken, files(id,name,modifiedTime)',
+    });
+    if (!reset && dp.nextPageToken) params.set('pageToken', dp.nextPageToken);
+    const resp = await driveFetch('https://www.googleapis.com/drive/v3/files?' + params);
+    if (!resp.ok) throw new Error('Drive returned ' + resp.status);
+    const data = await resp.json();
+    if (myReq !== dp.reqId) return; // a newer search superseded this one
+    for (const f of (data.files || [])) { dp.items.push(f); dp.known.set(f.id, f); }
+    dp.nextPageToken = data.nextPageToken || null;
+  } catch (e) {
+    if (myReq !== dp.reqId) return;
+    console.error(e); dp.error = e.message || 'Could not reach Drive';
+  } finally {
+    if (myReq === dp.reqId) { dp.loading = false; dpRender(); }
+  }
+}
+
+function dpMakeCheck() {
+  const c = document.createElement('span');
+  c.className = 'dp-check';
+  c.innerHTML = '<i class="fa-solid fa-check"></i>';
+  return c;
+}
+
+function dpRender() {
+  const opened = dpOpenedIds();
+  const root = dpEl.content;
+  root.innerHTML = '';
+
+  if (dp.error) {
+    const d = document.createElement('div'); d.className = 'dp-state';
+    d.textContent = 'Could not load files: ' + dp.error; root.appendChild(d);
+  } else if (!dp.items.length) {
+    const d = document.createElement('div'); d.className = 'dp-state';
+    d.textContent = dp.loading ? 'Loading…' : (dp.query ? 'No matching .docx files' : 'No .docx files found in your Drive');
+    root.appendChild(d);
+  } else {
+    const wrap = document.createElement('div');
+    wrap.className = dp.view === 'grid' ? 'dp-grid' : 'dp-list';
+    if (dp.view === 'list') {
+      const head = document.createElement('div'); head.className = 'dp-list-head';
+      head.innerHTML = '<span class="dp-col-name">Name</span><span class="dp-col-mod">Modified</span>';
+      wrap.appendChild(head);
+    }
+    for (const f of dp.items) {
+      const isOpen = opened.has(f.id);
+      const el = document.createElement('div');
+      el.dataset.id = f.id;
+      const meta = isOpen ? 'Already open' : dpFmtDate(f.modifiedTime);
+      const name = f.name.replace(/\.docx$/i, '');
+      el.className = (dp.view === 'grid' ? 'dp-item dp-card-item' : 'dp-item dp-row')
+        + (dp.selected.has(f.id) ? ' selected' : '') + (isOpen ? ' opened' : '');
+      el.title = f.name;
+      if (dp.view === 'grid') {
+        const thumb = document.createElement('div'); thumb.className = 'dp-thumb';
+        thumb.appendChild(dpMakeCheck());
+        const nm = document.createElement('div'); nm.className = 'dp-name'; nm.textContent = name;
+        const mt = document.createElement('div'); mt.className = 'dp-meta'; mt.textContent = meta;
+        el.append(thumb, nm, mt);
+      } else {
+        const ic = document.createElement('i'); ic.className = 'fa-solid fa-file-lines';
+        const nm = document.createElement('span'); nm.className = 'dp-name'; nm.textContent = name;
+        const mt = document.createElement('span'); mt.className = 'dp-meta'; mt.textContent = meta;
+        el.append(dpMakeCheck(), ic, nm, mt);
+      }
+      wrap.appendChild(el);
+    }
+    root.appendChild(wrap);
+    if (dp.nextPageToken) {
+      const more = document.createElement('button');
+      more.className = 'btn btn-ghost dp-more';
+      more.textContent = dp.loading ? 'Loading…' : 'Load more';
+      more.addEventListener('click', () => dpFetchPage(false));
+      root.appendChild(more);
+    }
+  }
+  dpUpdateFooter();
+}
+
+function dpUpdateFooter() {
+  const n = dp.selected.size;
+  dpEl.count.textContent = `${n} selected`;
+  dpEl.load.disabled = n === 0 || dp.busy;
+  if (!dp.busy) dpEl.load.textContent = n > 1 ? `Load ${n} files` : 'Load selected';
+}
+function dpSyncSelectionClasses() {
+  dpEl.content.querySelectorAll('.dp-item').forEach(el =>
+    el.classList.toggle('selected', dp.selected.has(el.dataset.id)));
+  dpUpdateFooter();
+}
+function dpToggle(id) {
+  if (dp.selected.has(id)) dp.selected.delete(id); else dp.selected.add(id);
+  dpSyncSelectionClasses();
+}
+
+function dpClose() {
+  if (dp.busy) return;
+  dpEl.root.classList.remove('open');
+}
+
+async function dpLoadSelected() {
+  if (dp.busy || !dp.selected.size) return;
+  const picks = [...dp.known.values()].filter(f => dp.selected.has(f.id));
+  dp.busy = true; dpUpdateFooter();
+  let ok = 0, failed = 0, first = null;
+  for (let i = 0; i < picks.length; i++) {
+    const gFile = picks[i];
+    dpEl.load.textContent = `Loading ${i + 1} / ${picks.length}…`;
+    try {
+      const resp = await driveFetch(`https://www.googleapis.com/drive/v3/files/${gFile.id}?alt=media`);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const blob = await resp.blob();
+      const { html, name } = await importDocx(new File([blob], gFile.name, { type: blob.type }));
+      const id = createFile(name, null, html);
+      files[id].gdriveId = gFile.id;
+      if (!first) first = id;
+      ok++;
+    } catch (e) { console.error(e); failed++; }
+  }
+  dp.busy = false;
+  if (first && !pendingFileId) pendingFileId = first;
+  if (ok) document.getElementById('btn-launch').style.opacity = '1';
+  dp.selected.clear();
+  if (failed) { dpRender(); showToast(`Loaded ${ok}, failed ${failed}`); }
+  else { dpClose(); showToast(`Loaded ${ok} file${ok === 1 ? '' : 's'} from Drive`); }
+}
+
+// open / close / controls
+document.getElementById('btn-drive-pull').addEventListener('click', async () => {
+  try {
+    await getDriveAccessToken(); // must run inside the click so the sign-in popup isn't blocked
+  } catch (e) {
+    console.error(e);
+    showToast('Drive sign-in failed: ' + (e?.message || e?.error || 'unknown error'));
+    return;
+  }
+  dp.selected.clear(); dp.query = ''; dpEl.search.value = '';
+  dpEl.root.classList.add('open');
+  dpFetchPage(true);
+});
+document.getElementById('dp-close').addEventListener('click', dpClose);
+document.getElementById('dp-cancel').addEventListener('click', dpClose);
+dpEl.root.addEventListener('mousedown', e => { if (e.target === dpEl.root) dpClose(); });
+dpEl.load.addEventListener('click', dpLoadSelected);
+document.getElementById('dp-clear').addEventListener('click', () => { dp.selected.clear(); dpSyncSelectionClasses(); });
+function dpSelectAll() {
+  const opened = dpOpenedIds();
+  dp.items.forEach(f => { if (!opened.has(f.id)) dp.selected.add(f.id); });
+  dpSyncSelectionClasses();
+}
+document.getElementById('dp-select-all').addEventListener('click', dpSelectAll);
+
+function dpSetView(v) {
+  dp.view = v;
+  document.getElementById('dp-view-grid').classList.toggle('active', v === 'grid');
+  document.getElementById('dp-view-list').classList.toggle('active', v === 'list');
+  dpRender();
+}
+document.getElementById('dp-view-grid').addEventListener('click', () => dpSetView('grid'));
+document.getElementById('dp-view-list').addEventListener('click', () => dpSetView('list'));
+
+let dpSearchTimer = null;
+dpEl.search.addEventListener('input', () => {
+  clearTimeout(dpSearchTimer);
+  dpSearchTimer = setTimeout(() => {
+    dp.query = dpEl.search.value.trim();
+    dpFetchPage(true);
+  }, 300);
+});
+
+document.addEventListener('keydown', e => {
+  if (!dpEl.root.classList.contains('open')) return;
+  const inInput = e.target === dpEl.search;
+  if (e.key === 'Escape') { dpClose(); }
+  else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !inInput) { e.preventDefault(); dpSelectAll(); }
+  else if (e.key === 'Enter' && !inInput && dp.selected.size) { dpLoadSelected(); }
+});
+
+// click to toggle, double-click to load one
+let dpSuppressClick = false;
+dpEl.body.addEventListener('click', e => {
+  if (dpSuppressClick) return;
+  const el = e.target.closest('.dp-item');
+  if (!el || el.classList.contains('opened') || dp.busy) return;
+  dpToggle(el.dataset.id);
+});
+dpEl.body.addEventListener('dblclick', e => {
+  const el = e.target.closest('.dp-item');
+  if (!el || el.classList.contains('opened') || dp.busy) return;
+  dp.selected = new Set([el.dataset.id]);
+  dpSyncSelectionClasses();
+  dpLoadSelected();
+});
+
+// drag a box to select (mouse / pen). Always adds to the current selection.
+dpEl.body.addEventListener('pointerdown', e => {
+  if (e.button !== 0 || e.pointerType === 'touch' || dp.busy) return;
+  if (e.target.closest('button')) return;
+  const rect = dpEl.body.getBoundingClientRect();
+  if (e.clientX > rect.left + dpEl.body.clientWidth) return; // scrollbar
+  const drag = {
+    startX: e.clientX - rect.left + dpEl.body.scrollLeft,
+    startY: e.clientY - rect.top + dpEl.body.scrollTop,
+    x: e.clientX, y: e.clientY, moved: false, raf: 0,
+    base: new Set(dp.selected),
+  };
+  const frame = () => {
+    drag.raf = requestAnimationFrame(frame);
+    if (!drag.moved) return;
+    const r = dpEl.body.getBoundingClientRect();
+    if (drag.y < r.top + 28) dpEl.body.scrollTop -= 14;
+    else if (drag.y > r.bottom - 28) dpEl.body.scrollTop += 14;
+    const cx = Math.min(Math.max(drag.x, r.left), r.left + dpEl.body.clientWidth);
+    const cy = Math.min(Math.max(drag.y, r.top), r.bottom);
+    const sx = r.left + drag.startX - dpEl.body.scrollLeft;
+    const sy = r.top + drag.startY - dpEl.body.scrollTop;
+    const L = Math.min(sx, cx), R = Math.max(sx, cx), T = Math.min(sy, cy), B = Math.max(sy, cy);
+    const m = dpEl.marquee.style;
+    m.display = 'block';
+    m.left = (L - r.left + dpEl.body.scrollLeft) + 'px';
+    m.top = (T - r.top + dpEl.body.scrollTop) + 'px';
+    m.width = (R - L) + 'px'; m.height = (B - T) + 'px';
+    const next = new Set(drag.base);
+    dpEl.content.querySelectorAll('.dp-item:not(.opened)').forEach(el => {
+      const b = el.getBoundingClientRect();
+      if (b.left < R && b.right > L && b.top < B && b.bottom > T) next.add(el.dataset.id);
+    });
+    dp.selected = next;
+    dpSyncSelectionClasses();
+  };
+  const move = ev => {
+    drag.x = ev.clientX; drag.y = ev.clientY;
+    if (!drag.moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) > 4) drag.moved = true;
+  };
+  const up = () => {
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+    document.removeEventListener('pointercancel', up);
+    cancelAnimationFrame(drag.raf);
+    dpEl.marquee.style.display = 'none';
+    if (drag.moved) { dpSuppressClick = true; setTimeout(() => { dpSuppressClick = false; }, 0); }
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+  document.addEventListener('pointercancel', up);
+  drag.raf = requestAnimationFrame(frame);
+});
+
+function fmtTime(ts) {
+  const d = new Date(ts);
+  return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
+}
+function setSaveStatus(text, cls = '') {
+  const el = document.getElementById('save-status');
+  el.textContent = text;
+  el.className = cls;
+}
+function markUnsaved() { setSaveStatus('Unsaved changes', 'unsaved'); }
+
+function startSessionTimer() {
+  sessionStart = Date.now();
+  if (sessionTick) clearInterval(sessionTick);
+  sessionTick = setInterval(() => {
+    const e = Date.now() - sessionStart;
+    const pad = n => String(Math.floor(n)).padStart(2,'0');
+    document.getElementById('session-timer').textContent =
+      `${pad(e/3600000)}:${pad((e%3600000)/60000)}:${pad((e%60000)/1000)}`;
+  }, 1000);
+}
+
+function extractYTId(url) {
+  for (const p of [/youtu\.be\/([^?&]+)/, /[?&]v=([^&]+)/, /\/embed\/([^?&]+)/, /\/live\/([^?&]+)/, /\/shorts\/([^?&]+)/]) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+// NEW VERSION (RESETS MUTE STATE ON NEW VIDEO):
+function loadYT(url) {
+  const id = extractYTId(url);
+  if (!id) { showToast('Could not parse YouTube URL'); return false; }
+  isYT = true; isLocalVideo = false;
+  
+  // Reset mute state tracking for new video
+  isMuted = true;
+  const muteIcon = document.getElementById('mute-icon');
+  if (muteIcon) muteIcon.className = 'fas fa-volume-mute';
+  else btnToggleMute.textContent = '🔇';
+
+  document.getElementById('local-video').style.display = 'none';
+  const iframe = document.getElementById('yt-iframe');
+  iframe.src = `https://www.youtube.com/embed/${id}?autoplay=1&loop=1&playlist=${id}&controls=0&mute=1&modestbranding=1&enablejsapi=1&playsinline=1`;
+  iframe.style.display = 'block';
+  sizeYT();
+  showToast('Updating background video...');
+  return true;
+}
+
+function sizeYT() {
+  const iframe = document.getElementById('yt-iframe');
+  const W = window.innerWidth, H = window.innerHeight, r = 16/9;
+  let w = W, h = w/r;
+  if (h < H) { h = H; w = h*r; }
+  iframe.style.width = w+'px'; iframe.style.height = h+'px';
+}
+
+// REPLACE your existing loadLocalVid function with this:
+function loadLocalVid(file) {
+  isLocalVideo = true; 
+  isYT = false;
+  document.getElementById('yt-iframe').style.display = 'none';
+  const video = document.getElementById('local-video');
+  
+  // Clean up previous video URL memory if one exists
+  if (currentLocalVidUrl) {
+    URL.revokeObjectURL(currentLocalVidUrl);
+  }
+  
+  currentLocalVidUrl = URL.createObjectURL(file);
+  video.src = currentLocalVidUrl;
+  video.style.display = 'block';
+  video.play().catch(() => {});
+}
+
+window.addEventListener('resize', () => { if (isYT) sizeYT(); });
+
+document.getElementById('opacity-slider').addEventListener('input', function() {
+  document.getElementById('overlay-panel').style.background = `rgba(0,0,0,${this.value/100})`;
+});
+
+document.getElementById('btn-playpause').addEventListener('click', () => {
+  const btn = document.getElementById('btn-playpause');
+  if (isYT) {
+    const iframe = document.getElementById('yt-iframe');
+    iframe.contentWindow.postMessage(
+      JSON.stringify({ event: 'command', func: videoPlaying ? 'pauseVideo' : 'playVideo', args: '' }), '*'
+    );
+  } else if (isLocalVideo) {
+    const v = document.getElementById('local-video');
+    videoPlaying ? v.pause() : v.play();
+  }
+  videoPlaying = !videoPlaying;
+  btn.textContent = videoPlaying ? '⏸' : '▶';
+});
+
+document.getElementById('btn-update-yt').addEventListener('click', () => {
+  const url = document.getElementById('workspace-yt-update').value.trim();
+  if (url) {
+    loadYT(url);
+    document.getElementById('workspace-yt-update').value = '';
+  }
+});
+
+document.getElementById('btn-manual-save').addEventListener('click', () => {
+  if (activeFileId) saveDocx(activeFileId, false);
+});
+
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    if (activeFileId) saveDocx(activeFileId, false);
+  }
+});
+
+function showToast(msg, ms = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), ms);
+}
+
+document.getElementById('btn-pick-video').addEventListener('click', () => {
+  document.getElementById('local-video-input').click();
+});
+document.getElementById('local-video-input').addEventListener('change', function() {
+  if (!this.files[0]) return;
+  localVideoBlob = this.files[0];
+  document.getElementById('local-video-name').textContent = this.files[0].name;
+  document.getElementById('btn-launch').style.opacity = '1';
+});
+
+document.getElementById('btn-open-files').addEventListener('click', () => {
+  document.getElementById('open-files-input').click();
+});
+document.getElementById('open-files-input').addEventListener('change', async function() {
+  if (!this.files.length) return;
+  document.getElementById('open-files-name').textContent =
+    Array.from(this.files).map(f => f.name).join(', ');
+  let first = null;
+  await loadFiles(this.files, id => { if (!first) first = id; });
+  if (first) pendingFileId = first;
+  document.getElementById('btn-launch').style.opacity = '1';
+});
+
+document.getElementById('btn-new-from-landing').addEventListener('click', () => {
+  pendingFileId = createFile('Untitled Essay');
+  document.getElementById('btn-launch').style.opacity = '1';
+  showToast('Ready — click Open Workspace to begin');
+});
+
+document.getElementById('btn-launch').addEventListener('click', () => {
+  const ytUrl = document.getElementById('yt-url-input').value.trim();
+  if (ytUrl) loadYT(ytUrl);
+  else if (localVideoBlob) loadLocalVid(localVideoBlob);
+
+  if (!Object.keys(files).length) pendingFileId = createFile('Untitled Essay');
+
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('workspace').classList.add('active');
+
+  switchToFile(pendingFileId || Object.keys(files)[0]);
+  startSessionTimer();
+  editor.commands.focus();
+});
+
+document.getElementById('btn-close-modal').addEventListener('click', () => {
+  document.getElementById('add-file-modal').classList.remove('open');
+});
+
+document.getElementById('btn-create-named').addEventListener('click', () => {
+  const name = document.getElementById('new-file-name').value.trim() || 'Untitled Essay';
+  saveCurrentState();
+  const id = createFile(name);
+  switchToFile(id);
+  document.getElementById('add-file-modal').classList.remove('open');
+  document.getElementById('new-file-name').value = '';
+  showToast(`Created "${name}"`);
+});
+
+document.getElementById('btn-modal-open-files').addEventListener('click', () => {
+  document.getElementById('modal-open-input').click();
+});
+document.getElementById('modal-open-input').addEventListener('change', async function() {
+  if (!this.files.length) return;
+  let first = null;
+  await loadFiles(this.files, id => { if (!first) first = id; });
+  if (first) { saveCurrentState(); switchToFile(first); }
+  document.getElementById('add-file-modal').classList.remove('open');
+  showToast(`Opened ${this.files.length} file(s)`);
+});
+
+document.getElementById('add-file-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
+
+async function bootstrapGoogleServices() {
+  try {
+    await Promise.all([
+      loadScript('https://apis.google.com/js/api.js'),
+      loadScript('https://accounts.google.com/gsi/client')
+    ]);
+    initGoogleAuth();
+  } catch(e) {
+    console.error("Async background script injection sequence failed.", e);
+  }
+}
+bootstrapGoogleServices();
+
+</script>
+</body>
+</html>
